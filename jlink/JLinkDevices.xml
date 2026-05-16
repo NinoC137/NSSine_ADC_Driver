@@ -1,0 +1,17 @@
+<Database>
+  <Device>
+    <ChipInfo Vendor="NOVOSENSE"
+              Name="NS800RT7P65"
+              Core="JLINK_CORE_CORTEX_M7"
+              WorkRAMAddr="0x20120000"
+              WorkRAMSize="0x00002000" />
+    <FlashBankInfo Name="EFlash Bank 1"
+                   BaseAddr="0x08000000"
+                   AlwaysPresent="1">
+      <LoaderInfo Name="NS800RT7xxx_FlashBank1"
+                  MaxSize="0x00080000"
+                  Loader="NS800RT7xxx_FlashBank1.FLM"
+                  LoaderType="FLASH_ALGO_TYPE_OPEN" />
+    </FlashBankInfo>
+  </Device>
+</Database>

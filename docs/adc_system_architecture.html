@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NS800RT7P65 RT-Thread ADC Demo 系统架构</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --ink: #1d2733;
+      --muted: #667383;
+      --line: #9aa7b6;
+      --panel: #ffffff;
+      --kernel: #e7f1ff;
+      --app: #f3ecff;
+      --driver: #e9f8ef;
+      --sdk: #fff1df;
+      --hw: #fce8e8;
+      --accent: #2367c7;
+      --accent2: #16845f;
+      --warn: #b45f06;
+      --radius: 8px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    main {
+      width: min(1480px, calc(100vw - 48px));
+      margin: 24px auto;
+    }
+
+    header {
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      font-weight: 750;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(760px, 1.55fr) minmax(360px, 0.75fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    section {
+      background: var(--panel);
+      border: 1px solid #dce2ea;
+      border-radius: var(--radius);
+      box-shadow: 0 10px 28px rgba(23, 31, 43, 0.06);
+    }
+
+    .diagram {
+      position: relative;
+      padding: 22px;
+      min-height: 820px;
+      overflow: hidden;
+    }
+
+    .side {
+      padding: 20px;
+    }
+
+    .layer-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 13px;
+      font-weight: 720;
+      color: #334155;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .band {
+      position: relative;
+      border: 1px solid #d9e1eb;
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .band.app { background: var(--app); }
+    .band.kernel { background: var(--kernel); }
+    .band.driver { background: var(--driver); }
+    .band.sdk { background: var(--sdk); }
+    .band.hw { background: var(--hw); }
+
+    .grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .grid.cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid.cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .box {
+      position: relative;
+      min-height: 74px;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.86);
+    }
+
+    .box.strong {
+      border-color: #83aeea;
+      box-shadow: inset 0 0 0 1px rgba(35, 103, 199, .12);
+    }
+
+    .box h3 {
+      margin: 0 0 7px;
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .box p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .95em;
+      color: #173b72;
+    }
+
+    .route {
+      margin: 9px 0 0;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent);
+      flex: 0 0 auto;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid #d6dee8;
+      border-radius: 999px;
+      padding: 5px 9px;
+      background: #fff;
+    }
+
+    .chip {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      border: 1px solid #aab5c2;
+    }
+
+    .arrow-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: -5px 0 9px;
+      color: #425466;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .arrow-row div::before {
+      content: "↓";
+      display: block;
+      color: var(--accent);
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .irq-lane {
+      margin-top: 10px;
+      border: 1px dashed #8fb19f;
+      border-radius: var(--radius);
+      padding: 12px;
+      background: rgba(255,255,255,.58);
+    }
+
+    .irq-lane h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      color: #17674d;
+    }
+
+    .flow {
+      display: grid;
+      gap: 8px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 9px;
+      align-items: start;
+    }
+
+    .num {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .step p {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .side h2 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+
+    .side h3 {
+      margin: 18px 0 8px;
+      font-size: 15px;
+    }
+
+    .side p,
+    .side li {
+      color: #526070;
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+
+    .side ul {
+      padding-left: 18px;
+      margin: 8px 0 0;
+    }
+
+    .note {
+      margin-top: 14px;
+      border-left: 4px solid var(--warn);
+      background: #fff8ed;
+      padding: 10px 12px;
+      border-radius: 4px;
+      color: #66420f;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .small-table {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      border: 1px solid #dce2ea;
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-top: 10px;
+      font-size: 12.5px;
+    }
+
+    .small-table div {
+      padding: 8px 9px;
+      border-bottom: 1px solid #e8edf3;
+    }
+
+    .small-table div:nth-child(odd) {
+      background: #f7f9fc;
+      font-weight: 680;
+      color: #334155;
+    }
+
+    .small-table div:nth-last-child(-n+2) {
+      border-bottom: 0;
+    }
+
+    @media (max-width: 1120px) {
+      main {
+        width: min(960px, calc(100vw - 28px));
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .diagram {
+        min-height: auto;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .grid.cols-2,
+      .grid.cols-3,
+      .arrow-row {
+        grid-template-columns: 1fr;
+      }
+
+      main {
+        margin: 14px auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>NS800RT7P65 RT-Thread ADC Demo 系统架构</h1>
+      <p class="subtitle">当前工程采用“外设单元抽象 + 双设备”结构：<code>ns_adc_unit</code> 统一封装 ADCA/ADCB/ADCC，<code>adc0</code> 保持官方 RT-Thread ADC API 兼容，<code>nsadc0</code> 作为高级伴生设备承载中断、DMA、Burst 和 PPB 实验能力。</p>
+    </header>
+
+    <div class="layout">
+      <section class="diagram" aria-label="ADC demo 系统框图">
+        <div class="band app">
+          <div class="layer-title">Application Layer <span>应用与 FinSH</span></div>
+          <div class="grid cols-2">
+            <div class="box strong">
+              <h3><code>applications/adc_demo.c</code></h3>
+              <p>周期线程每秒读取 0-3 通道；FinSH 命令 <code>adc_sample</code> 手动采样。</p>
+              <div class="route"><span class="dot"></span><span>只调用 <code>rt_adc_enable/read/disable</code></span></div>
+            </div>
+            <div class="box strong">
+              <h3><code>applications/adc_advanced_demo.c</code></h3>
+              <p>FinSH 命令 <code>adc_adv_irq</code>、<code>adc_adv_dma</code>、<code>adc_adv_burst</code>、<code>adc_adv_ppb</code>。</p>
+              <div class="route"><span class="dot"></span><span>调用 <code>rt_device_control/read(nsadc0)</code></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow-row">
+          <div>标准 ADC API 路径</div>
+          <div>高级伴生设备路径</div>
+        </div>
+
+        <div class="band kernel">
+          <div class="layer-title">RT-Thread Device Layer <span>官方内核与设备框架</span></div>
+          <div class="grid cols-3">
+            <div class="box">
+              <h3>官方 ADC Core</h3>
+              <p><code>components/drivers/misc/adc.c</code> 提供 <code>rt_adc_*</code>，调用 <code>struct rt_adc_ops</code>。</p>
+            </div>
+            <div class="box">
+              <h3>Device Manager</h3>
+              <p><code>rt_device_register/find/control/read</code> 管理设备对象和回调入口。</p>
+            </div>
+            <div class="box">
+              <h3>IPC / Init / FinSH</h3>
+              <p><code>INIT_DEVICE_EXPORT</code> 注册初始化顺序；<code>rt_sem</code> 用于 ISR 完成通知。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow-row">
+          <div><code>rt_hw_adc_register("adc0")</code></div>
+          <div><code>rt_device_register("nsadc0")</code></div>
+        </div>
+
+        <div class="band driver">
+          <div class="layer-title">BSP Driver Layer <span>本工程适配层</span></div>
+          <div class="grid cols-3">
+            <div class="box strong">
+              <h3><code>drv_adc_ns800rt7p65x.c</code></h3>
+              <p>实现 <code>rt_adc_ops</code>：enable、convert、resolution、vref。只负责同步软件触发采样。</p>
+            </div>
+            <div class="box strong">
+              <h3><code>drv_adc_ns800rt7p65x_adv.c</code></h3>
+              <p>注册 <code>nsadc0</code>，实现高级命令、IRQ handler、DMA 完成处理、PPB 事件处理。</p>
+            </div>
+            <div class="box">
+              <h3><code>drv_adc_ns800rt7p65x_common.c</code></h3>
+              <p>集中维护 channel → ADC unit/SOC/ADCIN 映射、基础初始化、SOC 触发、EOC 等待和结果读取。</p>
+            </div>
+          </div>
+
+          <div class="irq-lane">
+            <h3>ADC Unit 抽象层</h3>
+            <div class="grid cols-3">
+              <div class="box">
+                <h3><code>ns_adc_unit</code></h3>
+                <p>一个结构体代表一个硬件 ADC 单元，保存 base/result、CONV/EVENT IRQ、DMAMUX 请求源和默认采样参数。</p>
+              </div>
+              <div class="box">
+                <h3>短函数接口</h3>
+                <p><code>ns_adc_init/soc/irq/dma/burst/ppb/start/stop/read</code> 对应基础采样与高级能力配置。</p>
+              </div>
+              <div class="box">
+                <h3>设备层复用</h3>
+                <p><code>adc0</code> 和 <code>nsadc0</code> 不再散落寄存器地址；均通过 unit 映射访问 ADCA/ADCB/ADCC。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="irq-lane">
+            <h3>PPB 独立模块</h3>
+            <div class="grid cols-3">
+              <div class="box">
+                <h3><code>drv_adc_ns800rt7p65x_ppb.c</code></h3>
+                <p>集中处理 PPB1 绑定、limit high/low 配置、EVENT IRQ 挂接和 delay timestamp 读取。</p>
+              </div>
+              <div class="box">
+                <h3><code>drv_adc_ns800rt7p65x_ppb.h</code></h3>
+                <p>定义 PPB 专属 config/status/context 和 <code>CONFIG_PPB_LIMIT</code>、<code>GET_PPB_STATUS</code> 命令号。</p>
+              </div>
+              <div class="box">
+                <h3>事件路径</h3>
+                <p>EVENT IRQ 进入 <code>ADCA/B/C_EVENT_IRQHandler</code> 后调用 PPB 模块读取并清除事件状态。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="irq-lane">
+            <h3>中断挂载路径</h3>
+            <div class="grid cols-3">
+              <div class="box">
+                <h3>启动文件弱符号</h3>
+                <p><code>startup_NS800RT7xxx.S</code> 的向量表包含 <code>ADCA_CONV_IRQHandler</code> 等弱符号。</p>
+              </div>
+              <div class="box">
+                <h3>本地强符号覆盖</h3>
+                <p><code>drv_adc_ns800rt7p65x_adv.c</code> 定义同名 IRQ handler，链接时覆盖默认 handler。</p>
+              </div>
+              <div class="box">
+                <h3>NVIC 动态挂接</h3>
+                <p><code>Interrupt_register()</code> 实际调用 <code>NVIC_SetVector()</code>，再 <code>NVIC_EnableIRQ()</code> 使能。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow-row">
+          <div>调用厂商 ADC driver</div>
+          <div>挂接 IRQ / DMA / EPWM / PPB</div>
+        </div>
+
+        <div class="band sdk">
+          <div class="layer-title">NOVOSENSE SDK Layer <span>只读厂商驱动</span></div>
+          <div class="grid cols-3">
+            <div class="box">
+              <h3><code>adc.c / adc.h</code></h3>
+              <p><code>ADC_setupSOC</code>、<code>ADC_forceMultipleSOC</code>、<code>ADC_readResult</code>、<code>ADC_setupPPB</code>。</p>
+            </div>
+            <div class="box">
+              <h3><code>interrupt.c</code></h3>
+              <p><code>Interrupt_register</code>、<code>Interrupt_enable</code>；本工程不调用整表初始化。</p>
+            </div>
+            <div class="box">
+              <h3><code>edma/dmamux/epwm</code></h3>
+              <p>DMA 请求映射、EDMA TCD 配置、EPWM1 SOCA 触发 Burst/PPB。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow-row">
+          <div>寄存器访问</div>
+          <div>硬件事件回调</div>
+        </div>
+
+        <div class="band hw">
+          <div class="layer-title">Hardware Layer <span>NS800RT7P65 外设</span></div>
+          <div class="grid cols-3">
+            <div class="box">
+              <h3>ADCA / ADCB / ADCC</h3>
+              <p><code>ns_adc_unit</code> 已覆盖三个 ADC 单元；当前默认映射使用 ADCA 与 ADCC，ADCB 预留给后续通道扩展。</p>
+            </div>
+            <div class="box">
+              <h3>ADCINT / PPB Event</h3>
+              <p>EOC 触发 <code>ADCA_CONV_IRQn</code>/<code>ADCC_CONV_IRQn</code>；PPB 越限触发 EVENT IRQ。</p>
+            </div>
+            <div class="box">
+              <h3>EDMA / DMAMUX / EPWM1</h3>
+              <p>DMAMUX 选择 ADC 请求源，EDMA 搬运结果，EPWM1 SOCA 提供周期触发。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="legend">
+          <span><i class="chip" style="background: var(--app)"></i>应用层</span>
+          <span><i class="chip" style="background: var(--kernel)"></i>RT-Thread</span>
+          <span><i class="chip" style="background: var(--driver)"></i>BSP 适配</span>
+          <span><i class="chip" style="background: var(--sdk)"></i>厂商 SDK</span>
+          <span><i class="chip" style="background: var(--hw)"></i>硬件外设</span>
+        </div>
+      </section>
+
+      <section class="side" aria-label="ADC 外设及中断挂载说明">
+        <h2>ADC 外设如何挂载到 RT-Thread</h2>
+
+        <div class="flow">
+          <div class="step">
+            <div class="num">1</div>
+            <p><code>INIT_DEVICE_EXPORT(rt_hw_ns_adc_init)</code> 在 RT-Thread 组件初始化阶段执行，调用 <code>rt_hw_adc_register()</code> 注册标准设备 <code>adc0</code>。</p>
+          </div>
+          <div class="step">
+            <div class="num">2</div>
+            <p>官方 ADC core 保存 <code>struct rt_adc_ops</code>。应用调用 <code>rt_adc_read()</code> 时，最终进入本 BSP 的 <code>ns_adc_convert()</code>。</p>
+          </div>
+          <div class="step">
+            <div class="num">3</div>
+            <p><code>ns_adc_convert()</code> 根据通道映射取得 <code>ns_adc_unit</code> 与 SOC，调用 <code>ns_adc_trigger()</code> 软件触发转换，再通过 <code>ns_adc_read()</code> 读取结果。</p>
+          </div>
+          <div class="step">
+            <div class="num">4</div>
+            <p><code>INIT_DEVICE_EXPORT(rt_hw_ns_adc_adv_init)</code> 注册高级伴生设备 <code>nsadc0</code>，它不是 ADC class，而是 Misc device，避免污染官方 <code>rt_adc_ops</code>。</p>
+          </div>
+        </div>
+
+        <h3>中断如何进入 RT-Thread 驱动</h3>
+        <p>启动文件的向量表已经包含 <code>ADCA_CONV_IRQHandler</code>、<code>ADCC_CONV_IRQHandler</code>、<code>ADCA_EVENT_IRQHandler</code>、<code>EDMA1_CH0_IRQHandler</code> 等弱符号。本工程在 <code>drv_adc_ns800rt7p65x_adv.c</code> 中定义同名强符号，链接时自然覆盖默认 handler。</p>
+        <p>运行时，高级驱动还会调用 <code>Interrupt_register(IRQn, handler)</code>。SDK 里的这个函数本质是 <code>NVIC_SetVector()</code>，所以它只是把单个 IRQ 的入口改到指定 handler；随后通过 <code>NVIC_EnableIRQ()</code> 使能中断。</p>
+
+        <div class="note">
+          本工程不要调用 SDK 示例里的 <code>Interrupt_initModule()</code> 或 <code>Interrupt_initVectorTable()</code> 作为常规初始化，因为 RT-Thread 启动流程已经建立异常/中断上下文。重新初始化整张向量表可能覆盖内核使用的异常入口。
+        </div>
+
+        <h3>标准路径与高级路径</h3>
+        <div class="small-table">
+          <div>标准采样</div>
+          <div><code>adc0 → rt_adc_ops → ns_adc_convert → ns_adc_unit → SDK ADC</code></div>
+          <div>高级采样</div>
+          <div><code>nsadc0 → rt_device_control/read → ns_adc_unit → IRQ/DMA/Burst/PPB</code></div>
+          <div>完成通知</div>
+          <div>ISR 写入 sample buffer，并释放 <code>rt_sem</code> 或触发 <code>rx_indicate</code></div>
+          <div>配置入口</div>
+          <div><code>Kconfig</code> 控制高级功能，<code>SConscript</code> 按需加入 SDK 源文件</div>
+        </div>
+
+        <h3>当前关键约束</h3>
+        <ul>
+          <li><code>adc0</code> 保持官方 RT-Thread ADC API 兼容，不承载自定义高级命令。</li>
+          <li><code>nsadc0</code> 是高级能力扩展点，第一版高级模式互斥运行。</li>
+          <li>SDK 与 RT-Thread 官方源码保持只读；适配逻辑只放在本 BSP 工程内。</li>
+          <li>Burst 默认使用 EPWM1 SOCA；DMA 默认走 EDMA1 CH0 与 DMAMUX ADC 请求源。</li>
+        </ul>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

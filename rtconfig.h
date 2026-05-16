@@ -1,0 +1,64 @@
+/* Automatically generated from .config; keep this file in sync with menuconfig. */
+
+#ifndef __RTTHREAD_CFG_H__
+#define __RTTHREAD_CFG_H__
+
+#define BSP_USING_NS800RT7P65
+#define BSP_USING_ADC0
+#define BSP_USING_ADC0_ADVANCED
+#define BSP_USING_ADC0_IRQ
+#define BSP_USING_ADC0_DMA
+#define BSP_USING_ADC0_BURST
+#define BSP_USING_ADC0_PPB
+#define BSP_USING_JLINK_FLASH_HELPER
+
+#define RT_NAME_MAX 8
+#define RT_ALIGN_SIZE 4
+#define RT_THREAD_PRIORITY_32
+#define RT_THREAD_PRIORITY_MAX 32
+#define RT_TICK_PER_SECOND 1000
+
+#define RT_DEBUG
+#define RT_DEBUG_INIT 0
+
+#define RT_USING_SEMAPHORE
+#define RT_USING_MUTEX
+#define RT_USING_MAILBOX
+
+#define RT_USING_MEMPOOL
+#define RT_USING_SMALL_MEM
+#define RT_USING_SMALL_MEM_AS_HEAP
+#define RT_USING_HEAP
+
+#define RT_USING_DEVICE
+#define RT_USING_CONSOLE
+#define RT_CONSOLEBUF_SIZE 256
+#define RT_CONSOLE_DEVICE_NAME "uart"
+
+#define RT_USING_COMPONENTS_INIT
+#define RT_USING_USER_MAIN
+#define RT_MAIN_THREAD_STACK_SIZE 1024
+#define RT_MAIN_THREAD_PRIORITY 10
+
+#define RT_USING_MSH
+#define RT_USING_FINSH
+#define FINSH_USING_MSH
+#define FINSH_USING_MSH_ONLY
+#define FINSH_THREAD_NAME "tshell"
+#define FINSH_THREAD_PRIORITY 21
+#define FINSH_THREAD_STACK_SIZE 1024
+#define FINSH_USING_SYMTAB
+#define FINSH_USING_DESCRIPTION
+#define FINSH_ARG_MAX 10
+
+#define RT_USING_DEVICE_IPC
+#define RT_USING_PIN
+#define RT_USING_ADC
+
+#define ARCH_ARM
+#define ARCH_ARM_CORTEX_M
+#define ARCH_ARM_CORTEX_FPU
+#define ARCH_ARM_CORTEX_M7
+#define RT_USING_CPU_FFS
+
+#endif

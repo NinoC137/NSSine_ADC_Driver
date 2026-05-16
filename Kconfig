@@ -1,0 +1,79 @@
+# 文件说明：
+# 本文件定义 NS800RT7P65 独立 BSP 的 menuconfig 入口，并继续引入
+# RT-Thread 官方 lts-v4.1.x 的 Kconfig 菜单。
+
+mainmenu "NS800RT7P65 RT-Thread Configuration"
+
+config BSP_DIR
+    string
+    option env="BSP_ROOT"
+    default "."
+
+config RTT_DIR
+    string
+    option env="RTT_ROOT"
+    default "external/rt-thread-lts-v4.1.x"
+
+config PKGS_DIR
+    string
+    option env="PKGS_ROOT"
+    default "packages"
+
+config BSP_USING_NS800RT7P65
+    bool
+    select ARCH_ARM_CORTEX_M7
+    select ARCH_ARM_CORTEX_FPU
+    select RT_USING_COMPONENTS_INIT
+    select RT_USING_USER_MAIN
+    select RT_USING_DEVICE
+    select RT_USING_ADC
+    select RT_USING_MUTEX
+    select RT_USING_MSH
+    default y
+
+menu "NS800RT7P65 BSP Configuration"
+
+config BSP_USING_ADC0
+    bool "Enable ADC0 RT-Thread device"
+    select RT_USING_ADC
+    default y
+
+menuconfig BSP_USING_ADC0_ADVANCED
+    bool "Enable NS800 ADC advanced companion device nsadc0"
+    depends on BSP_USING_ADC0
+    select RT_USING_SEMAPHORE
+    select RT_USING_MUTEX
+    default y
+
+if BSP_USING_ADC0_ADVANCED
+
+config BSP_USING_ADC0_IRQ
+    bool "Enable ADC interrupt sampling demo"
+    default y
+
+config BSP_USING_ADC0_DMA
+    bool "Enable ADC EDMA sampling demo"
+    default y
+
+config BSP_USING_ADC0_BURST
+    bool "Enable ADC burst mode demo"
+    default y
+
+config BSP_USING_ADC0_PPB
+    bool "Enable ADC PPB limit/event demo"
+    default y
+
+endif
+
+config BSP_USING_JLINK_FLASH_HELPER
+    bool "Enable J-Link flash helper target"
+    default y
+
+config FINSH_USING_MSH_ONLY
+    bool "Use MSH only mode for FinSH"
+    depends on RT_USING_MSH
+    default y
+
+endmenu
+
+source "$RTT_DIR/Kconfig"
