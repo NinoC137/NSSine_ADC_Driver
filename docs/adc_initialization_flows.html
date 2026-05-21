@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NS800RT7P65 ADC 初始化流程图</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fa;
+      --panel: #ffffff;
+      --ink: #17212f;
+      --muted: #657386;
+      --line: #aab6c5;
+      --unit: #e8f2ff;
+      --soc: #ecf8f1;
+      --irq: #fff3df;
+      --dma: #f0ecff;
+      --burst: #e9f7f7;
+      --ppb: #ffecec;
+      --run: #edf7df;
+      --accent: #1f67c1;
+      --ok: #16805f;
+      --warn: #b76408;
+      --danger: #b3313a;
+      --radius: 8px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    main {
+      width: min(1500px, calc(100vw - 40px));
+      margin: 24px auto 36px;
+    }
+
+    header {
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.65;
+      max-width: 1120px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 9px;
+      background: var(--panel);
+      border: 1px solid #d9e1eb;
+      border-radius: 999px;
+      font-size: 12px;
+      color: #39465a;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, .12);
+    }
+
+    .dot.unit { background: var(--unit); }
+    .dot.soc { background: var(--soc); }
+    .dot.irq { background: var(--irq); }
+    .dot.dma { background: var(--dma); }
+    .dot.burst { background: var(--burst); }
+    .dot.ppb { background: var(--ppb); }
+    .dot.run { background: var(--run); }
+
+    .overview {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr);
+      gap: 16px;
+      margin-bottom: 16px;
+      align-items: stretch;
+    }
+
+    section {
+      background: var(--panel);
+      border: 1px solid #dbe3ee;
+      border-radius: var(--radius);
+      box-shadow: 0 10px 28px rgba(22, 32, 45, .06);
+    }
+
+    .stack-card {
+      padding: 18px;
+    }
+
+    .stack-title {
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 760;
+    }
+
+    .stack {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .layer {
+      min-height: 92px;
+      padding: 12px;
+      border-radius: var(--radius);
+      border: 1px solid #d8e1ec;
+    }
+
+    .layer h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      letter-spacing: 0;
+    }
+
+    .layer p {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #506076;
+    }
+
+    .layer.app { background: #f6efff; }
+    .layer.unit { background: var(--unit); }
+    .layer.irq { background: var(--irq); }
+    .layer.adv { background: #edf8f4; }
+    .layer.hw { background: #fff0f0; }
+
+    .notes {
+      padding: 18px;
+    }
+
+    .notes h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+    }
+
+    .notes ul {
+      margin: 0;
+      padding-left: 18px;
+      color: #445369;
+      font-size: 13px;
+      line-height: 1.62;
+    }
+
+    .flow-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .flow {
+      position: relative;
+      padding: 16px;
+      min-height: 650px;
+      overflow: hidden;
+    }
+
+    .flow h2 {
+      margin: 0 0 6px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .flow .desc {
+      margin: 0 0 12px;
+      min-height: 42px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .steps {
+      display: grid;
+      gap: 10px;
+    }
+
+    .step {
+      position: relative;
+      padding: 11px 12px 11px 40px;
+      border-radius: var(--radius);
+      border: 1px solid #d8e1ec;
+      background: #fff;
+      min-height: 62px;
+    }
+
+    .step::before {
+      content: attr(data-n);
+      position: absolute;
+      left: 11px;
+      top: 12px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #233246;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      font-weight: 760;
+    }
+
+    .step::after {
+      content: "";
+      position: absolute;
+      left: 20px;
+      bottom: -11px;
+      width: 2px;
+      height: 10px;
+      background: var(--line);
+    }
+
+    .step:last-child::after {
+      display: none;
+    }
+
+    .step h3 {
+      margin: 0 0 4px;
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .step p {
+      margin: 0;
+      color: #526176;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .step.unit { background: var(--unit); }
+    .step.soc { background: var(--soc); }
+    .step.irq { background: var(--irq); }
+    .step.dma { background: var(--dma); }
+    .step.burst { background: var(--burst); }
+    .step.ppb { background: var(--ppb); }
+    .step.run { background: var(--run); }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .92em;
+      color: #24364d;
+      background: rgba(255,255,255,.65);
+      border: 1px solid rgba(130,145,166,.32);
+      border-radius: 5px;
+      padding: 1px 4px;
+    }
+
+    .footer-note {
+      margin-top: 14px;
+      padding: 14px 16px;
+      border-left: 4px solid var(--accent);
+      background: #eef5ff;
+      color: #38506d;
+      font-size: 13px;
+      line-height: 1.6;
+      border-radius: 0 var(--radius) var(--radius) 0;
+    }
+
+    @media (max-width: 1160px) {
+      .overview {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .stack {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      main {
+        width: min(100vw - 24px, 720px);
+      }
+
+      .flow-grid,
+      .stack {
+        grid-template-columns: 1fr;
+      }
+
+      .flow {
+        min-height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>NS800RT7P65 ADC 设备初始化流程</h1>
+      <p class="subtitle">
+        本图把 ADC 使用拆成统一的开发者流程：配置 ADC unit 基础功能，配置 ADCIN 与 SOC，按需要配置 IRQ、DMA、Burst、PPB 等功能，最后启动采样并在回调或读取路径中处理结果。
+        工程中的基础抽象位于 <code>ns_adc_unit</code>、<code>ns_adc_irq</code>、<code>ns_adc_dma</code> 与 PPB 模块，具体 demo 流程放在 <code>applications/adc_example.c</code> 和 <code>applications/adc_thread.c</code>。
+      </p>
+      <div class="legend" aria-label="图例">
+        <span class="chip"><span class="dot unit"></span>ADC unit 基础功能</span>
+        <span class="chip"><span class="dot soc"></span>Channel/SOC 配置</span>
+        <span class="chip"><span class="dot irq"></span>IRQ/回调</span>
+        <span class="chip"><span class="dot dma"></span>DMA/DMAMUX/EDMA</span>
+        <span class="chip"><span class="dot burst"></span>Burst/触发源</span>
+        <span class="chip"><span class="dot ppb"></span>PPB 后处理</span>
+        <span class="chip"><span class="dot run"></span>启动与结果处理</span>
+      </div>
+    </header>
+
+    <div class="overview">
+      <section class="stack-card">
+        <h2 class="stack-title">抽象层边界</h2>
+        <div class="stack">
+          <div class="layer app">
+            <h3>应用/demo</h3>
+            <p>选择 ADCA/B/C、ADCIN、SOC、功能组合；定义 IRQ 回调和结果处理策略。</p>
+          </div>
+          <div class="layer unit">
+            <h3>unit 抽象</h3>
+            <p><code>ns_adc_get</code>、<code>ns_adc_slot</code>、<code>ns_adc_trigger</code>、<code>ns_adc_read</code>。</p>
+          </div>
+          <div class="layer irq">
+            <h3>IRQ 薄封装</h3>
+            <p><code>ns_adc_irq_on/off</code>、<code>attach/detach</code>，只负责 INT1~4 与 NVIC 分发。</p>
+          </div>
+          <div class="layer adv">
+            <h3>显式模块层</h3>
+            <p><code>ns_adc_dma</code>、Burst 配置和 PPB 模块按需组合，应用直接选择需要的能力。</p>
+          </div>
+          <div class="layer hw">
+            <h3>硬件/SDK</h3>
+            <p>ADCA/B/C、32 个 SOC、ADCIN0~31、PPB1~4、DMAMUX/EDMA、ePWM。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="notes">
+        <h2>统一初始化模板</h2>
+        <ul>
+          <li>先选择 ADC unit：<code>ADCA</code>、<code>ADCB</code> 或 <code>ADCC</code>。</li>
+          <li>配置 ADC 基础功能：参考电压、分频、采样脉冲位置、converter enable。</li>
+          <li>配置 <code>ADCINx -> SOCn</code>，SOC 是 ADC 内部采样任务槽位。</li>
+          <li>按功能选择 IRQ、DMA、Burst、PPB；不用的功能不要隐式开启。</li>
+          <li>启动采样后，结果处理可以是轮询读取、IRQ 回调、DMA 完成回调或 PPB 状态读取。</li>
+        </ul>
+      </section>
+    </div>
+
+    <div class="flow-grid">
+      <section class="flow">
+        <h2>基础单次采样</h2>
+        <p class="desc">一次读取一个 ADCIN。适合调试、低速轮询和 RT-Thread 标准 <code>rt_adc_read()</code> 路径。</p>
+        <div class="steps">
+          <div class="step unit" data-n="1">
+            <h3>配置 ADC unit 基础功能</h3>
+            <p><code>ns_adc_hw_init()</code> 初始化 VREF、prescaler、pulse position，并启用 converter。</p>
+          </div>
+          <div class="step soc" data-n="2">
+            <h3>配置 channel 与 SOC</h3>
+            <p><code>ns_adc_channel_to_slot()</code> 得到 <code>ADCINx</code>、<code>SOCn</code>，再调用 <code>ns_adc_slot()</code>。</p>
+          </div>
+          <div class="step irq" data-n="3">
+            <h3>配置 EOC 标志</h3>
+            <p><code>ns_adc_irq_on(unit, INT1, soc)</code>，把目标 SOC 的 EOC 绑定到 ADCINT1。</p>
+          </div>
+          <div class="step run" data-n="4">
+            <h3>软件触发一次采样</h3>
+            <p><code>ns_adc_trigger(unit, ns_adc_mask(soc))</code>，只触发当前 SOC。</p>
+          </div>
+          <div class="step run" data-n="5">
+            <h3>等待并读取结果</h3>
+            <p><code>ns_adc_wait()</code> 等待 INT flag，随后 <code>ns_adc_read(unit, soc)</code> 读取 raw。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="flow">
+        <h2>连续采样 IRQ</h2>
+        <p class="desc">开发者显式配置多个 SOC 与 INT1~4，对每次 EOC 进入应用层回调处理。</p>
+        <div class="steps">
+          <div class="step unit" data-n="1">
+            <h3>配置 ADC 基础功能</h3>
+            <p>初始化 ADCA/B/C。demo 中选择 <code>ADCA</code>。</p>
+          </div>
+          <div class="step soc" data-n="2">
+            <h3>配置多组 ADCIN/SOC</h3>
+            <p>例如 <code>ADCIN0~3 -> SOC0~3</code>，逐个调用 <code>ns_adc_slot()</code>。</p>
+          </div>
+          <div class="step irq" data-n="3">
+            <h3>注册回调函数</h3>
+            <p><code>ns_adc_irq_attach(unit, callback)</code>，回调在 demo 中读取 SOC、清 flag、释放同步对象。</p>
+          </div>
+          <div class="step irq" data-n="4">
+            <h3>配置 INT1~4</h3>
+            <p>例如 <code>SOC0 -> INT1</code>、<code>SOC1 -> INT2</code>，调用 <code>ns_adc_irq_on()</code>。</p>
+          </div>
+          <div class="step run" data-n="5">
+            <h3>循环触发采样</h3>
+            <p>按需要触发单个 SOC 或 SOC mask，回调中保存结果。</p>
+          </div>
+          <div class="step run" data-n="6">
+            <h3>退出清理</h3>
+            <p><code>ns_adc_irq_off()</code> 关闭 INT，<code>ns_adc_irq_detach()</code> 注销回调，避免影响轮询采样。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="flow">
+        <h2>ADC Burst</h2>
+        <p class="desc">由触发源启动一组连续 SOC，适合固定序列快速采样。当前 demo 默认用 ePWM SOCA 触发。</p>
+        <div class="steps">
+          <div class="step unit" data-n="1">
+            <h3>配置 ADC 基础功能</h3>
+            <p>选择 unit，并确保 converter、VREF、prescaler 已配置。</p>
+          </div>
+          <div class="step soc" data-n="2">
+            <h3>配置 Burst SOC 序列</h3>
+            <p>从 <code>first_soc</code> 开始，把 <code>adc_channels[]</code> 展开到多个 SOC。</p>
+          </div>
+          <div class="step burst" data-n="3">
+            <h3>配置 Burst 功能</h3>
+            <p><code>ns_adc_burst()</code> 设置 burst size、priority 和 Burst trigger。</p>
+          </div>
+          <div class="step burst" data-n="4">
+            <h3>配置外部触发源</h3>
+            <p>例如配置 ePWM1 SOCA 的 period、compare、prescale，并打开 SYSCON 路由。</p>
+          </div>
+          <div class="step irq" data-n="5">
+            <h3>绑定最后一个 SOC 的 EOC</h3>
+            <p>将最后一个 SOC 绑定到 <code>ADCINT1</code>，用于判断整组 burst 已完成。</p>
+          </div>
+          <div class="step run" data-n="6">
+            <h3>等待完成并读取序列</h3>
+            <p><code>ns_adc_wait()</code> 后读取 <code>first_soc ... first_soc+N-1</code> 的结果。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="flow">
+        <h2>连续采样 + DMA</h2>
+        <p class="desc">ADC EOC 产生 DMA 请求，EDMA 将结果搬运到内存缓冲区，CPU 只处理 DMA 完成中断。</p>
+        <div class="steps">
+          <div class="step unit" data-n="1">
+            <h3>配置 ADC 基础功能</h3>
+            <p>初始化 unit，并配置需要采样的 SOC。</p>
+          </div>
+          <div class="step soc" data-n="2">
+            <h3>配置采样 SOC</h3>
+            <p>选择一个或多个 SOC，设置 trigger、ADCIN、sample window。</p>
+          </div>
+          <div class="step dma" data-n="3">
+            <h3>配置 DMAMUX</h3>
+            <p>把 ADC DMA 请求源，例如 <code>DMAMUX_ADCA1_REQ</code>，路由到 EDMA channel。</p>
+          </div>
+          <div class="step dma" data-n="4">
+            <h3>配置 EDMA TCD</h3>
+            <p>源地址是 ADC result 寄存器，目标地址是对齐 buffer，设置 minor/major loop。</p>
+          </div>
+          <div class="step irq" data-n="5">
+            <h3>注册 DMA 完成中断</h3>
+            <p>EDMA major loop 完成后进入 <code>EDMA1_CH0_IRQHandler</code>，失效 DCache 并汇总结果。</p>
+          </div>
+          <div class="step run" data-n="6">
+            <h3>启动 ADC 与 DMA</h3>
+            <p>启动 EDMA，再由软件或外部触发持续产生 ADC 结果。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="flow">
+        <h2>ADC Burst + DMA</h2>
+        <p class="desc">Burst 负责批量产生 SOC 结果，DMA 负责把结果序列搬到内存，适合固定窗口高速采样。</p>
+        <div class="steps">
+          <div class="step unit" data-n="1">
+            <h3>配置 ADC 基础功能</h3>
+            <p>选择 unit，完成 converter、VREF、时钟分频和结果寄存器路径配置。</p>
+          </div>
+          <div class="step soc" data-n="2">
+            <h3>配置 Burst SOC 序列</h3>
+            <p>配置 <code>first_soc</code>、<code>burst_size</code> 和 <code>adc_channels[]</code>。</p>
+          </div>
+          <div class="step burst" data-n="3">
+            <h3>配置 Burst 触发</h3>
+            <p>打开 Burst mode，配置 ePWM 或其他 Burst trigger。</p>
+          </div>
+          <div class="step dma" data-n="4">
+            <h3>配置 DMA 搬运</h3>
+            <p>DMAMUX 选择 ADC 请求源，EDMA buffer 按结果宽度和 sample count 配置。</p>
+          </div>
+          <div class="step irq" data-n="5">
+            <h3>配置完成中断</h3>
+            <p>可选择 DMA major interrupt 或最后 SOC 的 ADCINT 作为完成信号。</p>
+          </div>
+          <div class="step run" data-n="6">
+            <h3>启动触发链路</h3>
+            <p>启动 EDMA，再启动 ePWM/Burst 触发，完成后从 DMA buffer 读取窗口数据。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="flow">
+        <h2>ADC PPB 后处理</h2>
+        <p class="desc">PPB 挂在某个 SOC 后面，可做限值事件、delay timestamp、过采样 SUM/COUNT/MIN/MAX。</p>
+        <div class="steps">
+          <div class="step unit" data-n="1">
+            <h3>配置 ADC 基础功能</h3>
+            <p>初始化 unit，并准备 PPB 要绑定的 SOC。</p>
+          </div>
+          <div class="step soc" data-n="2">
+            <h3>配置 PPB 对应 SOC</h3>
+            <p>通过 <code>ADC_setupPPB(unit, ppb, soc)</code> 或封装层绑定 PPB1~4 与 SOC。</p>
+          </div>
+          <div class="step ppb" data-n="3">
+            <h3>选择 PPB 功能</h3>
+            <p>limit 模式配置 high/low/event；oversampling 配置 limit、shift、sync。</p>
+          </div>
+          <div class="step irq" data-n="4">
+            <h3>按需注册 Event IRQ</h3>
+            <p>PPB trip、zero 或 OSINT 可进入 <code>ADCA_EVENT_IRQHandler</code> 一类事件入口。</p>
+          </div>
+          <div class="step run" data-n="5">
+            <h3>启动采样或同步事件</h3>
+            <p>通过 SOC 触发、外部同步或软件 sync 推进 PPB 后处理逻辑。</p>
+          </div>
+          <div class="step ppb" data-n="6">
+            <h3>读取 PPB 状态</h3>
+            <p>读取 event flags、delay stamp、SUM、COUNT、MIN、MAX、平均值或剔除极值平均值。</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="footer-note">
+      设计原则：驱动层提供可复用的 ADC unit、IRQ、DMA、Burst、PPB 配置接口；demo 层负责选择功能组合、定义回调和决定结果处理方式。
+      因此 IRQ demo 的回调函数属于应用层，而 <code>ns_adc_irq.c</code> 只负责把 ADCA/B/C 的硬件入口分发到用户注册的回调。
+    </div>
+  </main>
+</body>
+</html>

@@ -10,7 +10,7 @@
 #define __DRV_ADC_NS800RT7P65X_H__
 
 #include "rtdevice.h"
-#include "drv_adc_ns800rt7p65x_common.h"
+#include "ns_adc_unit.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,7 +19,6 @@ extern "C" {
 #define NS_ADC_DEVICE_NAME "adc0"
 
 int rt_hw_ns_adc_init(void);
-int adc_regs(int argc, char **argv);
 
 #ifdef __cplusplus
 }

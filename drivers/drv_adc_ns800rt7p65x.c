@@ -10,6 +10,7 @@
  */
 
 #include "drv_adc_ns800rt7p65x.h"
+#include "ns_adc_irq.h"
 
 #ifdef RT_USING_FINSH
 #include "finsh.h"
@@ -26,7 +27,7 @@ static rt_err_t ns_adc_enabled(struct rt_adc_device *device, rt_uint32_t channel
      * RT-Thread ADC framework 会先 enable 通道再 read。
      * 对当前软件触发 demo 来说，enable 不需要额外配置 SOC，只记录通道状态。
      */
-    if (ns_adc_check_channel((rt_int8_t)channel) != RT_EOK)
+    if (channel >= NS_ADC_CHANNEL_COUNT)
     {
         return -RT_EINVAL;
     }
@@ -47,20 +48,9 @@ static rt_err_t ns_adc_enabled(struct rt_adc_device *device, rt_uint32_t channel
 
 static rt_err_t ns_adc_convert(struct rt_adc_device *device, rt_uint32_t channel, rt_uint32_t *value)
 {
-    const ns_adc_channel_map_t *map;
-    ns_adc_unit *unit;
-    ns_adc_slot_cfg slot;
-
-    /*
-     * 执行一次同步软件触发采样：
-     * 1. 检查通道和输出指针。
-     * 2. 确认通道已 enable。
-     * 3. 根据通道映射配置对应 unit/SOC/ADCIN。
-     * 4. 只触发目标 SOC，轮询等待 EOC，再读取 raw 结果。
-     */
     RT_UNUSED(device);
 
-    if ((value == RT_NULL) || (ns_adc_check_channel((rt_int8_t)channel) != RT_EOK))
+    if ((value == RT_NULL) || (channel >= NS_ADC_CHANNEL_COUNT))
     {
         return -RT_EINVAL;
     }
@@ -70,26 +60,7 @@ static rt_err_t ns_adc_convert(struct rt_adc_device *device, rt_uint32_t channel
         return -RT_ERROR;
     }
 
-    ns_adc_hw_init();
-
-    map = ns_adc_get_channel(channel);
-    if (map == RT_NULL)
-    {
-        return -RT_EINVAL;
-    }
-
-    unit = ns_adc_get_channel_unit(map);
-    if ((unit == RT_NULL) || (unit->cfg == RT_NULL))
-    {
-        return -RT_EINVAL;
-    }
-
-    if (ns_adc_channel_to_slot(channel, &slot) != RT_EOK)
-    {
-        return -RT_EINVAL;
-    }
-
-    if (ns_adc_once(unit, &slot, ADC_INT_NUMBER1, value) != RT_EOK)
+    if (ns_adc_read_channel_once(channel, value) != RT_EOK)
     {
         return -RT_ETIMEOUT;
     }
@@ -150,7 +121,7 @@ static ns_adc_unit_id ns_adc_regs_unit_id(const char *name)
     return NS_ADC_UNIT_A;
 }
 
-int adc_regs(int argc, char **argv)
+static int adc_regs(int argc, char **argv)
 {
     /*
      * ADC 基础诊断命令：

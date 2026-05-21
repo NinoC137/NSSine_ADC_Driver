@@ -104,3 +104,43 @@ Makefile 会生成临时脚本 `build/flash.jlink`，执行
 - `build/jlink/NS800RT7xxx_FlashBank1.FLM` 是否已生成。
 - `~/Library/Application Support/SEGGER/JLinkDevices/NOVOSENSE/NS800RT7P65` 下是否存在 `Devices.xml` 和 `NS800RT7xxx_FlashBank1.FLM`。
 - `JLINK_DEVICE` 是否为 `NS800RT7P65`，而不是裸核名 `Cortex-M7`。
+
+## 自动化联调 CLI
+
+工程提供 `tools/bringup/nsbringup.py`，用于把编译、烧录、串口日志、FinSH 命令
+和 GDB 快照串成可重复的 bring-up 流程。
+
+安装串口依赖：
+
+```sh
+.venv/bin/pip install -r requirements-bringup.txt
+```
+
+常用命令：
+
+```sh
+python3 tools/bringup/nsbringup.py list-serial
+python3 tools/bringup/nsbringup.py build --jobs 4
+python3 tools/bringup/nsbringup.py flash
+python3 tools/bringup/nsbringup.py serial-log --port /dev/cu.xxx
+python3 tools/bringup/nsbringup.py msh --port /dev/cu.xxx --cmd adc_sample --cmd adc_regs
+python3 tools/bringup/nsbringup.py gdb-snapshot --mem 0x40030000:16 --mem 0x40032000:16
+python3 tools/bringup/nsbringup.py smoke --port /dev/cu.xxx
+```
+
+每次运行都会在 `build/bringup/YYYYMMDD-HHMMSS/` 下生成日志和 `summary.md`。
+
+## ADC PPB 过采样验证
+
+PPB 过采样使用 ADC 后处理模块的 `PPBnPSUM/PPBnPMIN/PPBnPMAX/PPBnPCOUNT`
+和 final `PPBnSUM/PPBnMIN/PPBnMAX/PPBnCOUNT` 寄存器完成硬件累加与最大/最小值
+记录。当前 demo 提供 FinSH 命令：
+
+```sh
+adc_ppb_os
+adc_ppb_os a 1 0 0 16 1
+```
+
+第二条命令含义为：`ADCA`、`PPB1`、`SOC0`、`ADCIN0`、采样 `16` 次，并计算剔除
+最大/最小值后的平均值。当前第一版使用软件重复触发指定 SOC 来驱动 PPB 过采样，
+后续可替换为 repeater、burst 或 ePWM 触发源；PPB 结果读取接口保持不变。

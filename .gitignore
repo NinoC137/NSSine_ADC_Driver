@@ -5,6 +5,7 @@ cconfig.h
 .config.old
 __pycache__/
 *.pyc
+tools/env/
 
 # 外部依赖源码：RT-Thread 官方仓库只作为本地参考/依赖，不纳入本 demo 仓库
 /external/

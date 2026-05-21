@@ -350,7 +350,7 @@
   <main>
     <header>
       <h1>NS800RT7P65 RT-Thread ADC Demo 系统架构</h1>
-      <p class="subtitle">当前工程采用“外设单元抽象 + 双设备”结构：<code>ns_adc_unit</code> 统一封装 ADCA/ADCB/ADCC，<code>adc0</code> 保持官方 RT-Thread ADC API 兼容，<code>nsadc0</code> 作为高级伴生设备承载中断、DMA、Burst 和 PPB 实验能力。</p>
+      <p class="subtitle">当前工程采用“ADC unit + 显式资源配置 + 标准设备”结构：<code>ns_adc_unit</code> 统一封装 ADCA/ADCB/ADCC；<code>adc0</code> 保持官方 RT-Thread ADC API 兼容并默认暴露 ADCIN0~31；DMA、Burst、PPB 和 IRQ 由独立模块按需组合。</p>
     </header>
 
     <div class="layout">
@@ -359,21 +359,21 @@
           <div class="layer-title">Application Layer <span>应用与 FinSH</span></div>
           <div class="grid cols-2">
             <div class="box strong">
-              <h3><code>applications/adc_demo.c</code></h3>
-              <p>周期线程每秒读取 0-3 通道；FinSH 命令 <code>adc_sample</code> 手动采样。</p>
-              <div class="route"><span class="dot"></span><span>只调用 <code>rt_adc_enable/read/disable</code></span></div>
+              <h3><code>applications/adc_example.c</code></h3>
+              <p>提供 <code>adc_once</code>、<code>adc_loop</code>、<code>adc_burst_loop</code>、<code>adc_dma_loop</code> 等最小示例。</p>
+              <div class="route"><span class="dot"></span><span>使用 <code>rt_device_open/read/close</code> 显式暴露错误</span></div>
             </div>
             <div class="box strong">
-              <h3><code>applications/adc_advanced_demo.c</code></h3>
-              <p>FinSH 命令 <code>adc_adv_irq</code>、<code>adc_adv_dma</code>、<code>adc_adv_burst</code>、<code>adc_adv_ppb</code>。</p>
-              <div class="route"><span class="dot"></span><span>调用 <code>rt_device_control/read(nsadc0)</code></span></div>
+              <h3><code>applications/adc_thread.c</code></h3>
+              <p>提供后台 ADC+EDMA 环形采样命令，EPWM1 SOCA 周期触发，FinSH 可读取最近完成帧。</p>
+              <div class="route"><span class="dot"></span><span>直接组合 <code>ns_adc_unit</code>、<code>ns_adc_dma</code> 和 Burst 触发</span></div>
             </div>
           </div>
         </div>
 
         <div class="arrow-row">
           <div>标准 ADC API 路径</div>
-          <div>高级伴生设备路径</div>
+          <div>显式模块组合路径</div>
         </div>
 
         <div class="band kernel">
@@ -396,7 +396,7 @@
 
         <div class="arrow-row">
           <div><code>rt_hw_adc_register("adc0")</code></div>
-          <div><code>rt_device_register("nsadc0")</code></div>
+          <div><code>ns_adc_unit + irq/dma/burst/ppb</code></div>
         </div>
 
         <div class="band driver">
@@ -404,15 +404,33 @@
           <div class="grid cols-3">
             <div class="box strong">
               <h3><code>drv_adc_ns800rt7p65x.c</code></h3>
-              <p>实现 <code>rt_adc_ops</code>：enable、convert、resolution、vref。只负责同步软件触发采样。</p>
+              <p>实现 <code>rt_adc_ops</code>：enable、convert、resolution、vref。<code>convert</code> 根据 channel 映射只触发目标 SOC。</p>
             </div>
             <div class="box strong">
-              <h3><code>drv_adc_ns800rt7p65x_adv.c</code></h3>
-              <p>注册 <code>nsadc0</code>，实现高级命令、IRQ handler、DMA 完成处理、PPB 事件处理。</p>
+              <h3><code>ns_adc_dma.c</code> / <code>ns_adc_irq.c</code></h3>
+              <p>提供 EDMA 搬运、ADCINT 配置、CONV/EVENT IRQ 回调分发等薄封装。</p>
             </div>
             <div class="box">
-              <h3><code>drv_adc_ns800rt7p65x_common.c</code></h3>
-              <p>集中维护 channel → ADC unit/SOC/ADCIN 映射、基础初始化、SOC 触发、EOC 等待和结果读取。</p>
+              <h3><code>ns_adc_unit.c</code></h3>
+              <p>维护默认 <code>adc0</code> 映射：chN → ADCA SOCN → ADCINN，并提供 unit、slot、sequence、Burst 等基础能力。</p>
+            </div>
+          </div>
+
+          <div class="irq-lane">
+            <h3>硬件抽象模型</h3>
+            <div class="grid cols-3">
+              <div class="box">
+                <h3>3 个 ADC unit</h3>
+                <p><code>ADCA</code>、<code>ADCB</code>、<code>ADCC</code> 是三个独立 ADC 外设单元，每个 unit 有自己的 base、result、IRQ 和 DMA 请求。</p>
+              </div>
+              <div class="box">
+                <h3>32 个 SOC / unit</h3>
+                <p>每个 unit 内部有 <code>SOC0~SOC31</code>。SOC 是转换任务槽，用于绑定触发源、ADCIN 和采样窗口。</p>
+              </div>
+              <div class="box">
+                <h3>4 个 PPB / unit</h3>
+                <p>每个 unit 内部有 <code>PPB1~PPB4</code>，可显式绑定到某个 SOC 做 limit/event/delay 后处理。</p>
+              </div>
             </div>
           </div>
 
@@ -425,11 +443,11 @@
               </div>
               <div class="box">
                 <h3>短函数接口</h3>
-                <p><code>ns_adc_init/soc/irq/dma/burst/ppb/start/stop/read</code> 对应基础采样与高级能力配置。</p>
+                <p><code>ns_adc_slot/seq/once/wait</code> 负责 SOC 序列和单次采样；<code>irq/dma/burst/ppb</code> 作为独立模块按需组合。</p>
               </div>
               <div class="box">
                 <h3>设备层复用</h3>
-                <p><code>adc0</code> 和 <code>nsadc0</code> 不再散落寄存器地址；均通过 unit 映射访问 ADCA/ADCB/ADCC。</p>
+                <p><code>adc0</code> 与应用示例都不直接散落寄存器地址；统一通过 unit/slot/seq 抽象访问 ADCA/ADCB/ADCC。</p>
               </div>
             </div>
           </div>
@@ -439,15 +457,15 @@
             <div class="grid cols-3">
               <div class="box">
                 <h3><code>drv_adc_ns800rt7p65x_ppb.c</code></h3>
-                <p>集中处理 PPB1 绑定、limit high/low 配置、EVENT IRQ 挂接和 delay timestamp 读取。</p>
+                <p>集中处理 <code>PPB1~PPB4</code> 绑定、limit high/low 配置、EVENT IRQ 挂接和 delay timestamp 读取。</p>
               </div>
               <div class="box">
                 <h3><code>drv_adc_ns800rt7p65x_ppb.h</code></h3>
-                <p>定义 PPB 专属 config/status/context 和 <code>CONFIG_PPB_LIMIT</code>、<code>GET_PPB_STATUS</code> 命令号。</p>
+                <p>PPB 配置显式包含 <code>unit_id</code>、<code>ppb</code>、<code>soc</code>、上下限和事件 IRQ 开关。</p>
               </div>
               <div class="box">
                 <h3>事件路径</h3>
-                <p>EVENT IRQ 进入 <code>ADCA/B/C_EVENT_IRQHandler</code> 后调用 PPB 模块读取并清除事件状态。</p>
+                <p>EVENT IRQ 进入 <code>ADCA/B/C_EVENT_IRQHandler</code> 后，按当前 unit 的 PPB 配置读取并清除事件状态。</p>
               </div>
             </div>
           </div>
@@ -461,7 +479,7 @@
               </div>
               <div class="box">
                 <h3>本地强符号覆盖</h3>
-                <p><code>drv_adc_ns800rt7p65x_adv.c</code> 定义同名 IRQ handler，链接时覆盖默认 handler。</p>
+                <p><code>ns_adc_irq.c</code> 定义同名 IRQ handler，链接时覆盖默认 handler，并分发到 unit 级回调。</p>
               </div>
               <div class="box">
                 <h3>NVIC 动态挂接</h3>
@@ -504,11 +522,11 @@
           <div class="grid cols-3">
             <div class="box">
               <h3>ADCA / ADCB / ADCC</h3>
-              <p><code>ns_adc_unit</code> 已覆盖三个 ADC 单元；当前默认映射使用 ADCA 与 ADCC，ADCB 预留给后续通道扩展。</p>
+              <p><code>ns_adc_unit</code> 覆盖三个 ADC 单元；<code>adc0</code> 默认使用 ADCA SOC0~31 → ADCIN0~31，应用示例可显式选择 A/B/C。</p>
             </div>
             <div class="box">
-              <h3>ADCINT / PPB Event</h3>
-              <p>EOC 触发 <code>ADCA_CONV_IRQn</code>/<code>ADCC_CONV_IRQn</code>；PPB 越限触发 EVENT IRQ。</p>
+              <h3>ADCIN / SOC / PPB</h3>
+              <p>共有 <code>ADCIN0~31</code> 输入源；每个 unit 有 <code>SOC0~31</code> 和 <code>PPB1~4</code>，由驱动显式绑定。</p>
             </div>
             <div class="box">
               <h3>EDMA / DMAMUX / EPWM1</h3>
@@ -540,30 +558,30 @@
           </div>
           <div class="step">
             <div class="num">3</div>
-            <p><code>ns_adc_convert()</code> 根据通道映射取得 <code>ns_adc_unit</code> 与 SOC，调用 <code>ns_adc_trigger()</code> 软件触发转换，再通过 <code>ns_adc_read()</code> 读取结果。</p>
+            <p><code>ns_adc_convert()</code> 将 RT channel 转为 <code>ns_adc_slot_cfg</code>，调用 <code>ns_adc_once()</code> 只触发目标 SOC，并在超时保护内读取结果。</p>
           </div>
           <div class="step">
             <div class="num">4</div>
-            <p><code>INIT_DEVICE_EXPORT(rt_hw_ns_adc_adv_init)</code> 注册高级伴生设备 <code>nsadc0</code>，它不是 ADC class，而是 Misc device，避免污染官方 <code>rt_adc_ops</code>。</p>
+            <p>DMA、Burst、PPB 等能力不再通过额外设备注册；应用或调试命令直接调用独立 BSP 模块，避免把自定义控制命令塞进官方 <code>rt_adc_ops</code>。</p>
           </div>
         </div>
 
         <h3>中断如何进入 RT-Thread 驱动</h3>
-        <p>启动文件的向量表已经包含 <code>ADCA_CONV_IRQHandler</code>、<code>ADCC_CONV_IRQHandler</code>、<code>ADCA_EVENT_IRQHandler</code>、<code>EDMA1_CH0_IRQHandler</code> 等弱符号。本工程在 <code>drv_adc_ns800rt7p65x_adv.c</code> 中定义同名强符号，链接时自然覆盖默认 handler。</p>
-        <p>运行时，高级驱动还会调用 <code>Interrupt_register(IRQn, handler)</code>。SDK 里的这个函数本质是 <code>NVIC_SetVector()</code>，所以它只是把单个 IRQ 的入口改到指定 handler；随后通过 <code>NVIC_EnableIRQ()</code> 使能中断。</p>
+        <p>启动文件的向量表已经包含 <code>ADCA_CONV_IRQHandler</code>、<code>ADCC_CONV_IRQHandler</code>、<code>ADCA_EVENT_IRQHandler</code>、<code>EDMA1_CH0_IRQHandler</code> 等弱符号。本工程在 <code>ns_adc_irq.c</code> 中定义 ADC CONV/EVENT handler，链接时自然覆盖默认 handler。</p>
+        <p>运行时，IRQ 封装可调用 <code>Interrupt_register(IRQn, handler)</code>。SDK 里的这个函数本质是 <code>NVIC_SetVector()</code>，所以它只是把单个 IRQ 的入口改到指定 handler；随后通过 <code>NVIC_EnableIRQ()</code> 使能中断。</p>
 
         <div class="note">
           本工程不要调用 SDK 示例里的 <code>Interrupt_initModule()</code> 或 <code>Interrupt_initVectorTable()</code> 作为常规初始化，因为 RT-Thread 启动流程已经建立异常/中断上下文。重新初始化整张向量表可能覆盖内核使用的异常入口。
         </div>
 
-        <h3>标准路径与高级路径</h3>
+        <h3>标准路径与显式模块路径</h3>
         <div class="small-table">
           <div>标准采样</div>
-          <div><code>adc0 → rt_adc_ops → ns_adc_convert → ns_adc_unit → SDK ADC</code></div>
-          <div>高级采样</div>
-          <div><code>nsadc0 → rt_device_control/read → ns_adc_unit → IRQ/DMA/Burst/PPB</code></div>
+          <div><code>adc0 → rt_adc_ops → channel→slot → ns_adc_once → SDK ADC</code></div>
+          <div>显式采样</div>
+          <div><code>application → ns_adc_unit → IRQ/DMA/Burst/PPB → SDK ADC</code></div>
           <div>完成通知</div>
-          <div>ISR 写入 sample buffer，并释放 <code>rt_sem</code> 或触发 <code>rx_indicate</code></div>
+          <div>轮询、IRQ 回调、DMA buffer 或 PPB 状态读取，由应用选择</div>
           <div>配置入口</div>
           <div><code>Kconfig</code> 控制高级功能，<code>SConscript</code> 按需加入 SDK 源文件</div>
         </div>
@@ -571,9 +589,10 @@
         <h3>当前关键约束</h3>
         <ul>
           <li><code>adc0</code> 保持官方 RT-Thread ADC API 兼容，不承载自定义高级命令。</li>
-          <li><code>nsadc0</code> 是高级能力扩展点，第一版高级模式互斥运行。</li>
+          <li><code>adc0</code> 默认暴露 32 路，映射为 <code>ADCA SOCN → ADCINN</code>；这只是 demo 默认策略。</li>
+          <li>DMA、Burst、PPB 作为独立模块被应用显式调用，不再额外注册伴生设备。</li>
           <li>SDK 与 RT-Thread 官方源码保持只读；适配逻辑只放在本 BSP 工程内。</li>
-          <li>Burst 默认使用 EPWM1 SOCA；DMA 默认走 EDMA1 CH0 与 DMAMUX ADC 请求源。</li>
+          <li>Burst 示例默认使用 ADCA + EPWM1 SOCA；DMA 示例默认走 EDMA1 CH0 与对应 DMAMUX ADC 请求源。</li>
         </ul>
       </section>
     </div>

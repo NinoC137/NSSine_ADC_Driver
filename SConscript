@@ -44,16 +44,22 @@ bsp_sources = [
     'user/bsp.c',
     'user/main.c',
     'drivers/ns_adc_unit.c',
-    'drivers/drv_adc_ns800rt7p65x_common.c',
+    'drivers/ns_adc_irq.c',
     'drivers/drv_adc_ns800rt7p65x.c',
-    'applications/adc_demo.c',
+    # 'applications/adc_demo.c',
     'user/startup_NS800RT7xxx.S',
 ]
 
 if GetDepend('BSP_USING_ADC0_ADVANCED'):
     bsp_sources += [
-        'drivers/drv_adc_ns800rt7p65x_adv.c',
-        'applications/adc_advanced_demo.c',
+        # 'applications/adc_dma_scan_demo.c',
+        'applications/adc_example.c',
+        'applications/adc_thread.c',
+    ]
+
+if GetDepend('BSP_USING_ADC0_DMA'):
+    bsp_sources += [
+        'drivers/ns_adc_dma.c',
     ]
 
 if GetDepend('BSP_USING_ADC0_PPB'):
