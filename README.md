@@ -15,6 +15,15 @@ source .venv/bin/activate
 # deactivate
 ```
 
+## 功能实现
+
+1. adc单通道单次采样/多通道单次采样
+2. adc单通道多次采样/多通道多次采样
+3. adc Burst模式触发采样
+4. adc Burst+DMA采样
+5. adc PPB硬件后处理（目前测试平均值、最大最小值）
+6. adc后台自动Burst+DMA传输示例
+
 ## 目录结构
 
 - `SConstruct`：BSP 的 SCons 总入口，加载 RT-Thread 官方构建脚本。
@@ -37,14 +46,6 @@ export RTT_ROOT=/path/to/rt-thread-lts-v4.1.x
 export NS800_SDK_ROOT=/path/to/NS800RT7P65/SDK/v0.4.0
 export RTT_EXEC_PATH=/Applications/ArmGNUToolchain/14.2.rel1/arm-none-eabi/bin
 ```
-
-未设置时的默认值：
-
-- `RTT_ROOT`：`external/rt-thread-lts-v4.1.x`
-- `NS800_SDK_ROOT`：
-  `/Volumes/1TBWDBlue/文稿/EmbeddedDevelop/NS800RT7P65_DevKit_260422/NS800RT7P65/SDK/v0.4.0`
-- `RTT_EXEC_PATH`：
-  `/Applications/ArmGNUToolchain/14.2.rel1/arm-none-eabi/bin`
 
 ## 配置
 
@@ -129,18 +130,3 @@ python3 tools/bringup/nsbringup.py smoke --port /dev/cu.xxx
 ```
 
 每次运行都会在 `build/bringup/YYYYMMDD-HHMMSS/` 下生成日志和 `summary.md`。
-
-## ADC PPB 过采样验证
-
-PPB 过采样使用 ADC 后处理模块的 `PPBnPSUM/PPBnPMIN/PPBnPMAX/PPBnPCOUNT`
-和 final `PPBnSUM/PPBnMIN/PPBnMAX/PPBnCOUNT` 寄存器完成硬件累加与最大/最小值
-记录。当前 demo 提供 FinSH 命令：
-
-```sh
-adc_ppb_os
-adc_ppb_os a 1 0 0 16 1
-```
-
-第二条命令含义为：`ADCA`、`PPB1`、`SOC0`、`ADCIN0`、采样 `16` 次，并计算剔除
-最大/最小值后的平均值。当前第一版使用软件重复触发指定 SOC 来驱动 PPB 过采样，
-后续可替换为 repeater、burst 或 ePWM 触发源；PPB 结果读取接口保持不变。
